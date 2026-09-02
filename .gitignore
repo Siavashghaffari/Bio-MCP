@@ -16,6 +16,11 @@ env/
 
 .cache_bio_mcp/
 
+# MCPB / DXT bundle build artifacts (see manifest.json, README Option 1)
+lib/
+*.mcpb
+*.dxt
+
 # Precompute output goes to ~/.cache/bio-mcp/ (BIO_MCP_CACHE_DIR), never
 # into the repo, so a blanket *.parquet/*.duckdb rule isn't needed here —
 # and would wrongly hide src/bio_mcp/data/human_gene_ids.parquet, the one

@@ -1,0 +1,39 @@
+# Excluded from the packed .mcpb bundle (see README Option 1).
+# The bundle needs manifest.json + lib/ (vendored bio_mcp and its deps).
+.git/
+.github/
+.venv/
+.venv-linux/
+venv/
+env/
+__pycache__/
+# NOT *.py[cod] — that glob also matches *.pyd, the Windows native extension
+# suffix, which silently strips every compiled wheel out of lib/ (pydantic_core,
+# pyarrow, ...) and leaves a bundle that dies on import. Same reason .so/.dylib
+# are never excluded here.
+*.pyc
+*.pyo
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+src/
+tests/
+Dockerfile
+.dockerignore
+smithery.yaml
+pyproject.toml
+scope.md
+design.md
+MVP.md
+*.mcpb
+*.dxt
+.env
+.DS_Store
+# Vendored deps ship, but their test suites and bundled binaries do not.
+lib/**/tests/
+lib/**/test/
+lib/bin/
+lib/**/*.dist-info/RECORD

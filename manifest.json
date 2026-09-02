@@ -1,0 +1,51 @@
+{
+  "manifest_version": "0.3",
+  "name": "bio-mcp",
+  "display_name": "bio-mcp",
+  "version": "0.1.0",
+  "description": "Single-cell expression (CZ CELLxGENE Census) and CRISPR screen hits (BioGRID ORCS), plus the join between them, for AI agents.",
+  "long_description": "An MCP server that answers, in one call: is this gene expressed in my cell type, and does knocking it out do anything? Human data only. Six tools over stdio. Census tools read precomputed tables (no 30GB download); the two ORCS tools need a free access key.",
+  "author": {
+    "name": "Siavash Ghaffari",
+    "url": "https://github.com/siavashghaffari/bio-mcp"
+  },
+  "homepage": "https://github.com/siavashghaffari/bio-mcp",
+  "documentation": "https://github.com/siavashghaffari/bio-mcp#readme",
+  "license": "Apache-2.0",
+  "keywords": ["bioinformatics", "single-cell", "crispr", "genomics", "census", "biogrid"],
+  "server": {
+    "type": "python",
+    "entry_point": "mcpb_entry.py",
+    "mcp_config": {
+      "command": "python",
+      "args": ["${__dirname}/mcpb_entry.py"],
+      "env": {
+        "ORCS_ACCESS_KEY": "${user_config.orcs_access_key}",
+        "BIO_MCP_CACHE_DIR": "${user_config.cache_dir}"
+      }
+    }
+  },
+  "user_config": {
+    "orcs_access_key": {
+      "type": "string",
+      "title": "BioGRID ORCS access key",
+      "description": "Optional. A free key from https://orcsws.thebiogrid.org/ enables crispr_screen_hits and screens_in_cell_line. Every Census tool works without it.",
+      "sensitive": true,
+      "required": false
+    },
+    "cache_dir": {
+      "type": "directory",
+      "title": "Data cache directory",
+      "description": "Where the precomputed Census tables are stored after first download. Defaults to ~/.cache/bio-mcp.",
+      "required": false,
+      "default": "${HOME}/.cache/bio-mcp"
+    }
+  },
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.10"
+    }
+  }
+}

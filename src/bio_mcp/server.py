@@ -24,7 +24,7 @@ import sys
 
 from mcp.server.mcpserver import MCPServer
 
-from bio_mcp import trim
+from bio_mcp import __version__, trim
 from bio_mcp.errors import SourceError
 from bio_mcp.sources import census, orcs
 
@@ -35,6 +35,10 @@ logger = logging.getLogger("bio_mcp.server")
 
 server = MCPServer(
     name="bio-mcp",
+    # MCPServer defaults version to "", which reports an empty version in the
+    # initialize handshake; clients show that as an unversioned server.
+    version=__version__,
+    website_url="https://github.com/siavashghaffari/bio-mcp",
     instructions=(
         "Human-only single-cell expression (CZ CELLxGENE Census) and CRISPR "
         "screen hit calls (BioGRID ORCS). Prefer gene_evidence when the "

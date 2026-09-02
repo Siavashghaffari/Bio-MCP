@@ -24,32 +24,156 @@ live queries don't work (see [Performance](#performance) below).
 
 ## Install
 
-```bash
-pip install bio-mcp
-```
+> **Release status.** Two things haven't shipped yet (Phase 4 in
+> [`scope.md`](scope.md)): the `bio-mcp` package isn't on PyPI, and the
+> precomputed Census tables aren't hosted for download.
+>
+> So **Option 3 (pip/uvx) cannot work yet** — there is nothing on PyPI to
+> install — and **Option 2 (Smithery)** has nothing to resolve either.
+> **Options 1, 4 and 5** build and run from this repo today. Whichever you
+> pick, the Census tools need the precomputed tables in `~/.cache/bio-mcp/`
+> first (see [Performance](#performance)); the two ORCS tools work
+> everywhere once you set a key.
 
-Then point your MCP client (Claude Desktop, etc.) at it over stdio:
-
-```json
-{
-  "mcpServers": {
-    "bio-mcp": {
-      "command": "bio-mcp"
-    }
-  }
-}
-```
-
-The first call to a Census tool downloads a small precomputed data table
-(a few MB) and caches it under `~/.cache/bio-mcp/`. No TileDB, no 30GB
-downloads — the server depends only on `pandas`/`pyarrow`/`httpx`/`mcp`,
-and runs on Linux, macOS, and Windows.
+The server speaks **stdio**: your MCP client launches it as a subprocess and
+exchanges JSON-RPC over stdin/stdout. It depends only on
+`pandas`/`pyarrow`/`httpx`/`mcp` — no TileDB, no 30GB downloads — and runs on
+Linux, macOS, and Windows. The first Census call downloads a small
+precomputed table (a few MB) into `~/.cache/bio-mcp/`.
 
 For `crispr_screen_hits` and `screens_in_cell_line`, set `ORCS_ACCESS_KEY`
 to a free key from [orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/).
 Without it, those two tools return a message explaining how to get one;
 every Census tool (including the Census half of `gene_evidence`) works
 regardless.
+
+### Option 1 — Desktop Extension (MCPB / `.dxt`)
+
+A one-click bundle for Claude Desktop and other MCPB-compatible clients, with
+a GUI field for the ORCS key. Built from [`manifest.json`](manifest.json):
+
+```bash
+npm install -g @anthropic-ai/mcpb   # the `mcpb` CLI (formerly `dxt`)
+pip install --target lib .          # vendor bio_mcp + deps into lib/
+mcpb validate manifest.json
+mcpb pack . bio-mcp.mcpb
+```
+
+Then drag `bio-mcp.mcpb` onto your client and fill in the optional key.
+
+Three things worth knowing, all measured on a real packed bundle:
+
+- **A bundle is platform- and Python-version-specific.** `pip install
+  --target` vendors *binary* wheels — here `cp310-win_amd64` — so a bundle
+  packed on Windows/3.10 runs only there. Build one per platform you ship to.
+  (`manifest.json` lists all three platforms because the *source* supports
+  all three.)
+- **It is large**: ~63 MB packed, ~181 MB unpacked. `pandas`, `pyarrow` and
+  `mcp`'s own `pywin32` dependency dominate.
+- **First launch takes ~10 s** while Python imports that tree cold; later
+  launches are quicker once `.pyc` files exist.
+
+The bundle runs [`mcpb_entry.py`](mcpb_entry.py) rather than `python -m
+bio_mcp` directly. That shim exists for a specific reason: `pip install
+--target` does not process `.pth` files, so `PYTHONPATH=lib` is *not*
+equivalent to installing — and `mcp` depends on `pywin32` on Windows, which
+relies on a `.pth` to put `pywintypes` on the path. Without the shim the
+bundled server dies on import before it speaks any JSON-RPC.
+
+The packed `.mcpb` isn't published as a release asset yet — build it locally
+with the commands above.
+
+### Option 2 — Smithery · *pending release*
+
+Once bio-mcp is published, [`smithery.yaml`](smithery.yaml) lets Smithery
+install it:
+
+```bash
+npx -y @smithery/cli install bio-mcp --client claude
+```
+
+The config is structurally valid and its `commandFunction` produces the right
+launch spec with and without a key, but it has never been run against
+Smithery itself — nothing is published for it to resolve. Smithery's schema
+also moves; re-check it against their current docs before submitting.
+
+### Option 3 — pip / uvx / pipx · *pending PyPI release*
+
+```bash
+pip install bio-mcp            # then command: "bio-mcp"
+uvx bio-mcp                    # run without installing (like npx)
+pipx install bio-mcp
+```
+
+MCP client config (stdio):
+
+```json
+{
+  "mcpServers": {
+    "bio-mcp": {
+      "command": "bio-mcp",
+      "env": { "ORCS_ACCESS_KEY": "your-key-here" }
+    }
+  }
+}
+```
+
+### Option 4 — from source *(works today)*
+
+```bash
+git clone https://github.com/siavashghaffari/bio-mcp
+cd bio-mcp
+pip install -e .
+python -m bio_mcp              # starts the stdio server
+```
+
+MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "bio-mcp": {
+      "command": "python",
+      "args": ["-m", "bio_mcp"],
+      "env": { "ORCS_ACCESS_KEY": "your-key-here" }
+    }
+  }
+}
+```
+
+The Census tools need the precomputed tables in `~/.cache/bio-mcp/` — build
+them with `pip install -e ".[precompute]"` and the jobs in
+[Performance](#performance) (Linux/macOS), or point `BIO_MCP_CUBE_BASE_URL`
+at a host that has them.
+
+### Option 5 — Docker
+
+```bash
+docker build -t bio-mcp .
+```
+
+```json
+{
+  "mcpServers": {
+    "bio-mcp": {
+      "command": "docker",
+      "args": ["run", "--rm", "-i",
+               "-e", "ORCS_ACCESS_KEY",
+               "-v", "bio-mcp-cache:/home/app/.cache/bio-mcp",
+               "bio-mcp"]
+    }
+  }
+}
+```
+
+The `-i` flag is required (stdio). The named volume persists the Census
+tables between runs.
+
+The image builds `bio-mcp` from source in a first stage and installs only the
+resulting wheel into the runtime stage, which runs as a non-root user. Note
+the build has not been executed end-to-end yet — it needs to reach PyPI from
+inside the container, which a TLS-intercepting network will block until the
+proxy's root CA is added to the image.
 
 ## Tools
 

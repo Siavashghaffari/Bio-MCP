@@ -534,8 +534,34 @@ class TestCensusDatasets:
 
 
 # ---------------------------------------------------------------------------
-# server.py — gene_evidence partial failure and size regression
+# server.py — identity, gene_evidence partial failure, and size regression
 # ---------------------------------------------------------------------------
+
+
+class TestServerIdentity:
+    """What a client sees in the MCP `initialize` handshake."""
+
+    def test_reports_a_real_version(self):
+        # MCPServer defaults `version` to "", which clients render as an
+        # unversioned server. Caught by an end-to-end stdio handshake, so
+        # pinned here.
+        import bio_mcp
+
+        assert server_module.server.version == bio_mcp.__version__
+        assert server_module.server.version, "server must not report an empty version"
+
+    async def test_registers_exactly_the_six_scoped_tools(self):
+        # scope.md section 2: "Tools | Six or fewer, one of which is the
+        # cross-source join", and section 3 excludes "A seventh tool".
+        names = [t.name for t in await server_module.server.list_tools()]
+        assert names == [
+            "find_cells",
+            "expression_by_cell_type",
+            "census_datasets",
+            "crispr_screen_hits",
+            "screens_in_cell_line",
+            "gene_evidence",
+        ]
 
 
 class TestGeneEvidenceDegradation:

@@ -60,7 +60,21 @@ packages = ["src/bio_mcp"]
 # wheel's <dist-info>/licenses/ directory.
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/LICENSE", "/NOTICE", "/README.md", "/scope.md", "/design.md", "/MVP.md"]
+include = [
+    "/src",
+    "/tests",
+    "/LICENSE",
+    "/NOTICE",
+    "/README.md",
+    "/scope.md",
+    "/design.md",
+    "/MVP.md",
+    "/manifest.json",
+    "/mcpb_entry.py",
+    "/.mcpbignore",
+    "/smithery.yaml",
+    "/Dockerfile",
+]
 
 [tool.ruff]
 line-length = 100
