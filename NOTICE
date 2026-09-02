@@ -1,0 +1,19 @@
+bio-mcp
+Copyright 2026 Siavash Ghaffari
+
+This product includes software developed by Siavash Ghaffari.
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+---
+
+bio-mcp queries and redistributes derived aggregates from third-party
+public data sources, each under its own terms:
+
+- CZ CELLxGENE Census (Chan Zuckerberg Initiative) —
+  https://cellxgene.cziscience.com/  (data under CC-BY 4.0)
+- BioGRID ORCS (BioGRID / Mount Sinai) —
+  https://orcs.thebiogrid.org/  (requires a free access key; academic use)
+- NCBI Gene (gene_info) — https://www.ncbi.nlm.nih.gov/gene/  (public domain)
+
+Attribute these sources when using bio-mcp output in published work.

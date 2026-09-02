@@ -1,0 +1,25 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.venv/
+.venv-linux/
+venv/
+env/
+
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+.cache_bio_mcp/
+
+# Precompute output goes to ~/.cache/bio-mcp/ (BIO_MCP_CACHE_DIR), never
+# into the repo, so a blanket *.parquet/*.duckdb rule isn't needed here —
+# and would wrongly hide src/bio_mcp/data/human_gene_ids.parquet, the one
+# parquet file that's meant to be committed and shipped in the wheel.
+
+.env
+.DS_Store
