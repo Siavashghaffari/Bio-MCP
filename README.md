@@ -24,15 +24,39 @@ live queries don't work (see [Performance](#performance) below).
 
 ## Install
 
-### 1. Install the server
+Two ways in. Both need steps 3 and 4 afterwards.
+
+### Option A — Claude Desktop extension (download and double-click)
+
+**1. Download the bundle for your platform** from the
+[v0.1.0 release](https://github.com/Siavashghaffari/Bio-MCP/releases/tag/v0.1.0):
+
+| Platform | File | Size |
+|---|---|---|
+| Windows (x86-64) | [`bio-mcp-windows-x86_64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-windows-x86_64-py312.mcpb) | 63 MB |
+| macOS (Apple silicon) | [`bio-mcp-macos-arm64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-macos-arm64-py312.mcpb) | 57 MB |
+| Linux (x86-64) | [`bio-mcp-linux-x86_64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-linux-x86_64-py312.mcpb) | 85 MB |
+
+**2. Install it.** Open Claude Desktop → **Settings → Extensions**, then drag
+the downloaded file onto that window. Double-clicking the file works too. If
+your Claude Desktop expects the older `.dxt` suffix, rename the file — the
+format is identical.
+
+**3. Fill in the ORCS key** in the field the installer shows, or leave it blank
+(see step 4 below).
+
+These bundles carry their own dependencies and need **Python 3.12** on your
+machine. On a different Python the extension says so on startup rather than
+failing obscurely — use Option B instead, or
+[build a bundle](#cutting-a-release) against your own Python.
+
+### Option B — pip and a config file (any MCP client)
 
 ```bash
 pip install git+https://github.com/Siavashghaffari/Bio-MCP
 ```
 
-This puts a `bio-mcp` command on your `PATH`. Python 3.10 or newer.
-
-### 2. Add it to your MCP client
+Add to your client's MCP config:
 
 ```json
 {
@@ -92,28 +116,6 @@ them on first use.
 key from [orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/). Without it
 those two tools explain how to get one, and every Census tool — including the
 Census half of `gene_evidence` — keeps working.
-
-### Alternative: install as a desktop extension
-
-Instead of steps 1–2, you can package bio-mcp as a double-clickable Claude
-Desktop extension. Build it with:
-
-```bash
-git clone https://github.com/Siavashghaffari/Bio-MCP
-cd Bio-MCP
-npm install -g @anthropic-ai/mcpb
-pip install --target lib .
-mcpb pack . bio-mcp.mcpb
-```
-
-Drag the resulting `bio-mcp.mcpb` onto Claude Desktop's **Settings →
-Extensions**; it prompts for the ORCS key in a form field. Steps 3 and 4 still
-apply.
-
-The bundle vendors its dependencies, so it is tied to the platform *and* the
-Python version you build it with — build it on the machine you will run it on.
-It is ~63 MB and takes about 10 seconds to start the first time. If the
-Python does not match, the extension says so instead of failing obscurely.
 
 bio-mcp itself depends only on `pandas`, `pyarrow`, `httpx` and `mcp`. No
 TileDB, no 30 GB download.
