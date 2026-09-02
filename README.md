@@ -28,27 +28,30 @@ Two ways in. Both need steps 3 and 4 afterwards.
 
 ### Option A — Claude Desktop extension (download and double-click)
 
-**1. Download the bundle for your platform** from the
-[v0.1.0 release](https://github.com/Siavashghaffari/Bio-MCP/releases/tag/v0.1.0):
-
-| Platform | File | Size |
-|---|---|---|
-| Windows (x86-64) | [`bio-mcp-windows-x86_64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-windows-x86_64-py312.mcpb) | 63 MB |
-| macOS (Apple silicon) | [`bio-mcp-macos-arm64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-macos-arm64-py312.mcpb) | 57 MB |
-| Linux (x86-64) | [`bio-mcp-linux-x86_64-py312.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/download/v0.1.0/bio-mcp-linux-x86_64-py312.mcpb) | 85 MB |
+**1. Download [`bio-mcp.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/latest/download/bio-mcp.mcpb)**
+from the [latest release](https://github.com/Siavashghaffari/Bio-MCP/releases/latest).
+One 1.3 MB file — same file for Windows, macOS and Linux.
 
 **2. Install it.** Open Claude Desktop → **Settings → Extensions**, then drag
-the downloaded file onto that window. Double-clicking the file works too. If
-your Claude Desktop expects the older `.dxt` suffix, rename the file — the
-format is identical.
+the file onto that window. Double-clicking works too. If your Claude Desktop
+expects the older `.dxt` suffix, rename the file — the format is identical.
 
 **3. Fill in the ORCS key** in the field the installer shows, or leave it blank
-(see step 4 below).
+(see step 4).
 
-These bundles carry their own dependencies and need **Python 3.12** on your
-machine. On a different Python the extension says so on startup rather than
-failing obscurely — use Option B instead, or
-[build a bundle](#cutting-a-release) against your own Python.
+The extension needs [uv](https://docs.astral.sh/uv/getting-started/installation/)
+on your machine — a single binary, and the standard Python installer these days:
+
+```bash
+# macOS / Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# Windows
+powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+uv provisions Python and installs bio-mcp's dependencies on first launch, which
+takes about 20 seconds; later launches are immediate. You do not need Python
+installed yourself.
 
 ### Option B — pip and a config file (any MCP client)
 
@@ -248,35 +251,36 @@ python -m bio_mcp.selftest  # live smoke test, hits every tool once
 
 ### Cutting a release
 
-Tagging publishes the downloadable install artifacts —
-`.mcpb` extensions for Linux, macOS and Windows, plus a wheel and sdist:
+Tagging builds and publishes the install artifacts — the `.mcpb` extension plus
+a wheel and sdist:
 
 ```bash
-git tag v0.1.0 && git push origin v0.1.0
+git tag v0.1.1 && git push origin v0.1.1
 ```
 
-[`.github/workflows/release.yml`](.github/workflows/release.yml) builds each
-bundle on its own runner (vendored binary wheels are tied to both platform and
-CPython minor version), verifies native extensions survived packing, smoke-tests
-that each bundle starts, and attaches everything to the GitHub Release.
+[`.github/workflows/release.yml`](.github/workflows/release.yml) validates the
+manifest, packs the bundle, checks its shape, launches it once to prove it
+starts, and attaches everything to the GitHub Release.
 
 To build one locally:
 
 ```bash
 npm install -g @anthropic-ai/mcpb
-pip install --target lib .
-mcpb validate manifest.json
 mcpb pack . bio-mcp.mcpb
 ```
 
-The bundle runs [`mcpb_entry.py`](mcpb_entry.py) rather than `python -m
-bio_mcp` directly. `pip install --target` does not process `.pth` files, so
-`PYTHONPATH=lib` is not equivalent to installing — and `mcp` depends on
-`pywin32` on Windows, which needs a `.pth` to put `pywintypes` on the path.
-The shim restores that and checks the interpreter version. Note that
-`.mcpbignore` must never use the `*.py[cod]` glob: it also matches `*.pyd` and
-silently strips every compiled wheel out of the bundle. CI fails if it
-reappears.
+The extension is a **uv bundle** (`server.type: "uv"` in
+[`manifest.json`](manifest.json)): it ships source plus `pyproject.toml`, and
+uv resolves dependencies and provisions a Python on the user's machine at first
+launch. Per the MCPB spec a uv bundle must never vendor a `lib/` or `venv/` —
+compiled wheels like `pandas`, `pyarrow` and `pydantic-core` cannot be bundled
+portably across platforms and Python versions. CI fails the build if one
+appears.
+
+The launch command is `uv run ... python -m bio_mcp`, not a path to
+`__main__.py`. Running the file directly puts `src/bio_mcp/` on `sys.path[0]`,
+where this package's `http.py` shadows the standard library's `http` package
+and breaks any dependency that imports `http.client`.
 
 ## Out of scope
 

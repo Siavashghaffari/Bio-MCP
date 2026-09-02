@@ -1,16 +1,18 @@
-# Excluded from the packed .mcpb bundle (see README Option 1).
-# The bundle needs manifest.json + lib/ (vendored bio_mcp and its deps).
+# Excluded from the packed .mcpb bundle.
+#
+# The bundle is a `uv` extension (manifest.json, server.type "uv"): it ships
+# manifest.json, pyproject.toml and src/, and uv resolves the dependencies on
+# the user's machine at first launch. Per the MCPB spec a uv bundle must NOT
+# contain a vendored lib/ or venv/ — bundling compiled wheels (pandas, pyarrow,
+# pydantic-core) is not portable across platforms or Python versions.
 .git/
 .github/
+.claude/
 .venv/
 .venv-linux/
 venv/
 env/
 __pycache__/
-# NOT *.py[cod] — that glob also matches *.pyd, the Windows native extension
-# suffix, which silently strips every compiled wheel out of lib/ (pydantic_core,
-# pyarrow, ...) and leaves a bundle that dies on import. Same reason .so/.dylib
-# are never excluded here.
 *.pyc
 *.pyo
 *.egg-info/
@@ -19,9 +21,8 @@ __pycache__/
 .mypy_cache/
 dist/
 build/
-src/
+lib/
 tests/
-pyproject.toml
 scope.md
 design.md
 MVP.md
@@ -29,8 +30,3 @@ MVP.md
 *.dxt
 .env
 .DS_Store
-# Vendored deps ship, but their test suites and bundled binaries do not.
-lib/**/tests/
-lib/**/test/
-lib/bin/
-lib/**/*.dist-info/RECORD

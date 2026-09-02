@@ -1,5 +1,5 @@
 {
-  "manifest_version": "0.3",
+  "manifest_version": "0.4",
   "name": "bio-mcp",
   "display_name": "bio-mcp",
   "version": "0.1.0",
@@ -14,11 +14,18 @@
   "license": "Apache-2.0",
   "keywords": ["bioinformatics", "single-cell", "crispr", "genomics", "census", "biogrid"],
   "server": {
-    "type": "python",
-    "entry_point": "mcpb_entry.py",
+    "type": "uv",
+    "entry_point": "src/bio_mcp/__main__.py",
     "mcp_config": {
-      "command": "python",
-      "args": ["${__dirname}/mcpb_entry.py"],
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${__dirname}",
+        "python",
+        "-m",
+        "bio_mcp"
+      ],
       "env": {
         "ORCS_ACCESS_KEY": "${user_config.orcs_access_key}",
         "BIO_MCP_CACHE_DIR": "${user_config.cache_dir}"
@@ -36,13 +43,13 @@
     "cache_dir": {
       "type": "directory",
       "title": "Data cache directory",
-      "description": "Where the precomputed Census tables are stored after first download. Defaults to ~/.cache/bio-mcp.",
+      "description": "Where the precomputed Census tables are stored. Defaults to ~/.cache/bio-mcp.",
       "required": false,
       "default": "${HOME}/.cache/bio-mcp"
     }
   },
   "compatibility": {
-    "claude_desktop": ">=0.10.0",
+    "claude_desktop": ">=0.12.0",
     "platforms": ["darwin", "win32", "linux"],
     "runtimes": {
       "python": ">=3.10"
