@@ -473,6 +473,31 @@ def datasets_fixture(tmp_path):
     return path
 
 
+class TestMissingCensusTables:
+    """What a user sees before the precompute jobs have been run."""
+
+    async def test_missing_table_names_the_file_and_how_to_build_it(self, monkeypatch):
+        monkeypatch.delenv(census_module.CUBE_BASE_URL_ENV_VAR, raising=False)
+        with pytest.raises(SourceError) as exc_info:
+            await census_module.find_cells(tissue="lung")
+        message = exc_info.value.message
+        assert exc_info.value.source == "census"
+        assert "census_cell_counts.parquet" in message
+        assert "build_cell_counts" in message
+
+    async def test_no_request_is_made_when_no_base_url_is_configured(self, monkeypatch):
+        # Without a configured host there is nothing to fetch, so the error
+        # must come back immediately rather than after a doomed round-trip.
+        monkeypatch.delenv(census_module.CUBE_BASE_URL_ENV_VAR, raising=False)
+
+        def fail_if_called(*args, **kwargs):
+            raise AssertionError("must not attempt a download with no base URL set")
+
+        monkeypatch.setattr(census_module.httpx, "AsyncClient", fail_if_called)
+        with pytest.raises(SourceError):
+            await census_module.find_cells(tissue="lung")
+
+
 class TestFindCells:
     async def test_no_filters_aggregates_everything(self, cell_counts_fixture):
         result = await census_module.find_cells()

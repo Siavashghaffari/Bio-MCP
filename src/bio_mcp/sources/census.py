@@ -37,20 +37,26 @@ from bio_mcp.precompute.common import (
     TISSUE_COLUMN,
 )
 
-# Where to download precomputed tables from if they aren't cached locally.
-# Placeholder until Phase 4 publishes real release assets (scope.md Phase
-# 4) — override with the BIO_MCP_CUBE_BASE_URL env var in the meantime, or
-# just run the precompute jobs locally so the files already exist in
-# CACHE_DIR before the server starts.
-DEFAULT_CUBE_BASE_URL = (
-    "https://github.com/siavashghaffari/bio-mcp/releases/latest/download"
+# Precomputed tables are built locally by the jobs in `bio_mcp.precompute`.
+# Set BIO_MCP_CUBE_BASE_URL to a host serving them (a release page, an S3
+# bucket) and the server will fetch them into CACHE_DIR on first use instead.
+# There is no default host: pointing at one that does not serve the files
+# would make every Census call pay for a doomed request before reporting the
+# same thing the message below says immediately.
+CUBE_BASE_URL_ENV_VAR = "BIO_MCP_CUBE_BASE_URL"
+
+BUILD_TABLES_HELP = (
+    "Build it with `pip install -e \".[precompute]\"` then "
+    "`python -m bio_mcp.precompute.build_cell_counts` and "
+    "`python -m bio_mcp.precompute.build_expression_cube`, or set "
+    f"{CUBE_BASE_URL_ENV_VAR} to a host serving the precomputed tables."
 )
 
 _TABLES: dict[str, pd.DataFrame] = {}
 
 
-def _cube_base_url() -> str:
-    return os.environ.get("BIO_MCP_CUBE_BASE_URL", DEFAULT_CUBE_BASE_URL)
+def _cube_base_url() -> str | None:
+    return os.environ.get(CUBE_BASE_URL_ENV_VAR) or None
 
 
 async def _ensure_downloaded(filename: str) -> Path:
@@ -58,7 +64,11 @@ async def _ensure_downloaded(filename: str) -> Path:
     if path.exists():
         return path
 
-    url = f"{_cube_base_url()}/{filename}"
+    base_url = _cube_base_url()
+    if base_url is None:
+        raise SourceError("census", f"{filename} is not in {CACHE_DIR}. {BUILD_TABLES_HELP}")
+
+    url = f"{base_url.rstrip('/')}/{filename}"
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
             resp = await client.get(url)
@@ -66,10 +76,8 @@ async def _ensure_downloaded(filename: str) -> Path:
     except httpx.HTTPError as exc:
         raise SourceError(
             "census",
-            f"{filename} is not cached locally and could not be downloaded from "
-            f"{url} ({exc}). Run `python -m bio_mcp.precompute.build_cell_counts` "
-            "and `build_expression_cube` (needs the `precompute` extra) to build "
-            "it locally, or set BIO_MCP_CUBE_BASE_URL to a host that has it.",
+            f"{filename} is not in {CACHE_DIR} and could not be downloaded from "
+            f"{url} ({exc}). {BUILD_TABLES_HELP}",
         ) from exc
 
     CACHE_DIR.mkdir(parents=True, exist_ok=True)

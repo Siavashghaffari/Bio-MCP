@@ -44,3 +44,21 @@ jobs:
           python -m build
       - name: Check the bundled gene-id table made it into the wheel
         run: python -c "import zipfile, glob; w = glob.glob('dist/*.whl')[0]; assert 'bio_mcp/data/human_gene_ids.parquet' in zipfile.ZipFile(w).namelist(), 'gene-id table missing from wheel'"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Validate the MCPB extension manifest
+        run: |
+          npm install -g @anthropic-ai/mcpb
+          mcpb validate manifest.json
+
+      - name: Check .mcpbignore keeps native extensions in the bundle
+        # `*.py[cod]` would also match `*.pyd` and silently strip every
+        # compiled wheel out of lib/, producing a bundle that dies on import.
+        run: |
+          if grep -qE '^\*\.py\[cod\]' .mcpbignore; then
+            echo "::error::.mcpbignore must not use *.py[cod] - it matches *.pyd"
+            exit 1
+          fi

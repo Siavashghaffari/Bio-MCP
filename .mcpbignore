@@ -21,9 +21,6 @@ dist/
 build/
 src/
 tests/
-Dockerfile
-.dockerignore
-smithery.yaml
 pyproject.toml
 scope.md
 design.md

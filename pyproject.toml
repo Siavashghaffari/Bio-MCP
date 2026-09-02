@@ -72,8 +72,6 @@ include = [
     "/manifest.json",
     "/mcpb_entry.py",
     "/.mcpbignore",
-    "/smithery.yaml",
-    "/Dockerfile",
 ]
 
 [tool.ruff]

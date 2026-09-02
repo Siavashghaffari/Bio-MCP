@@ -24,33 +24,38 @@ live queries don't work (see [Performance](#performance) below).
 
 ## Install
 
-> **Release status.** Two things haven't shipped yet (Phase 4 in
-> [`scope.md`](scope.md)): the `bio-mcp` package isn't on PyPI, and the
-> precomputed Census tables aren't hosted for download.
->
-> So **Option 3 (pip/uvx) cannot work yet** — there is nothing on PyPI to
-> install — and **Option 2 (Smithery)** has nothing to resolve either.
-> **Options 1, 4 and 5** build and run from this repo today. Whichever you
-> pick, the Census tools need the precomputed tables in `~/.cache/bio-mcp/`
-> first (see [Performance](#performance)); the two ORCS tools work
-> everywhere once you set a key.
+Run bio-mcp either as a packaged desktop extension or straight from a clone.
 
-The server speaks **stdio**: your MCP client launches it as a subprocess and
+The server speaks **stdio** — your MCP client launches it as a subprocess and
 exchanges JSON-RPC over stdin/stdout. It depends only on
-`pandas`/`pyarrow`/`httpx`/`mcp` — no TileDB, no 30GB downloads — and runs on
-Linux, macOS, and Windows. The first Census call downloads a small
-precomputed table (a few MB) into `~/.cache/bio-mcp/`.
+`pandas`, `pyarrow`, `httpx` and `mcp`: no TileDB, no 30 GB downloads.
 
-For `crispr_screen_hits` and `screens_in_cell_line`, set `ORCS_ACCESS_KEY`
-to a free key from [orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/).
-Without it, those two tools return a message explaining how to get one;
-every Census tool (including the Census half of `gene_evidence`) works
-regardless.
+Two setup steps apply to both installs:
+
+**Census tables.** The Census tools read precomputed tables from
+`~/.cache/bio-mcp/`. Build them once (Linux/macOS — `cellxgene-census` has no
+Windows wheels):
+
+```bash
+pip install -e ".[precompute]"
+python -m bio_mcp.precompute.build_cell_counts      # ~5 minutes, exact
+python -m bio_mcp.precompute.build_expression_cube  # ~1.5 hours, sampled
+```
+
+See [Performance](#performance) for why they are precomputed rather than
+queried live. Set `BIO_MCP_CUBE_BASE_URL` to a host serving these files to
+have the server fetch them on first use instead of building them.
+
+**ORCS key.** `crispr_screen_hits` and `screens_in_cell_line` need
+`ORCS_ACCESS_KEY`, a free key from
+[orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/). Without it those two
+tools return a message explaining how to get one; every Census tool,
+including the Census half of `gene_evidence`, works regardless.
 
 ### Option 1 — Desktop Extension (MCPB / `.dxt`)
 
 A one-click bundle for Claude Desktop and other MCPB-compatible clients, with
-a GUI field for the ORCS key. Built from [`manifest.json`](manifest.json):
+a GUI field for the ORCS key. Build it from [`manifest.json`](manifest.json):
 
 ```bash
 npm install -g @anthropic-ai/mcpb   # the `mcpb` CLI (formerly `dxt`)
@@ -61,51 +66,33 @@ mcpb pack . bio-mcp.mcpb
 
 Then drag `bio-mcp.mcpb` onto your client and fill in the optional key.
 
-Three things worth knowing, all measured on a real packed bundle:
+Three properties of the packed bundle, measured:
 
-- **A bundle is platform- and Python-version-specific.** `pip install
-  --target` vendors *binary* wheels — here `cp310-win_amd64` — so a bundle
-  packed on Windows/3.10 runs only there. Build one per platform you ship to.
-  (`manifest.json` lists all three platforms because the *source* supports
-  all three.)
-- **It is large**: ~63 MB packed, ~181 MB unpacked. `pandas`, `pyarrow` and
-  `mcp`'s own `pywin32` dependency dominate.
-- **First launch takes ~10 s** while Python imports that tree cold; later
-  launches are quicker once `.pyc` files exist.
+- **It is platform- and Python-version-specific.** `pip install --target`
+  vendors *binary* wheels, so a bundle packed on Windows/CPython 3.10 runs
+  only there. Build one per platform you ship to. (`manifest.json` lists all
+  three platforms because the *source* supports all three.)
+- **It is large**: ~63 MB packed, ~181 MB unpacked — `pandas`, `pyarrow` and
+  `mcp`'s Windows `pywin32` dependency dominate.
+- **First launch takes ~10 s** while Python imports that tree cold. Later
+  launches are faster once `.pyc` files exist.
 
 The bundle runs [`mcpb_entry.py`](mcpb_entry.py) rather than `python -m
-bio_mcp` directly. That shim exists for a specific reason: `pip install
---target` does not process `.pth` files, so `PYTHONPATH=lib` is *not*
-equivalent to installing — and `mcp` depends on `pywin32` on Windows, which
-relies on a `.pth` to put `pywintypes` on the path. Without the shim the
-bundled server dies on import before it speaks any JSON-RPC.
+bio_mcp` directly. `pip install --target` does not process `.pth` files, so
+`PYTHONPATH=lib` is not equivalent to installing — and `mcp` depends on
+`pywin32` on Windows, which needs a `.pth` to put `pywintypes` on the path.
+The shim restores that; without it the bundled server dies on import.
 
-The packed `.mcpb` isn't published as a release asset yet — build it locally
-with the commands above.
-
-### Option 2 — Smithery · *pending release*
-
-Once bio-mcp is published, [`smithery.yaml`](smithery.yaml) lets Smithery
-install it:
+### Option 2 — from source
 
 ```bash
-npx -y @smithery/cli install bio-mcp --client claude
+git clone https://github.com/siavashghaffari/bio-mcp
+cd bio-mcp
+pip install -e .
 ```
 
-The config is structurally valid and its `commandFunction` produces the right
-launch spec with and without a key, but it has never been run against
-Smithery itself — nothing is published for it to resolve. Smithery's schema
-also moves; re-check it against their current docs before submitting.
-
-### Option 3 — pip / uvx / pipx · *pending PyPI release*
-
-```bash
-pip install bio-mcp            # then command: "bio-mcp"
-uvx bio-mcp                    # run without installing (like npx)
-pipx install bio-mcp
-```
-
-MCP client config (stdio):
+That installs a `bio-mcp` console script. Point your client at either it or
+`python -m bio_mcp`:
 
 ```json
 {
@@ -117,63 +104,6 @@ MCP client config (stdio):
   }
 }
 ```
-
-### Option 4 — from source *(works today)*
-
-```bash
-git clone https://github.com/siavashghaffari/bio-mcp
-cd bio-mcp
-pip install -e .
-python -m bio_mcp              # starts the stdio server
-```
-
-MCP client config:
-
-```json
-{
-  "mcpServers": {
-    "bio-mcp": {
-      "command": "python",
-      "args": ["-m", "bio_mcp"],
-      "env": { "ORCS_ACCESS_KEY": "your-key-here" }
-    }
-  }
-}
-```
-
-The Census tools need the precomputed tables in `~/.cache/bio-mcp/` — build
-them with `pip install -e ".[precompute]"` and the jobs in
-[Performance](#performance) (Linux/macOS), or point `BIO_MCP_CUBE_BASE_URL`
-at a host that has them.
-
-### Option 5 — Docker
-
-```bash
-docker build -t bio-mcp .
-```
-
-```json
-{
-  "mcpServers": {
-    "bio-mcp": {
-      "command": "docker",
-      "args": ["run", "--rm", "-i",
-               "-e", "ORCS_ACCESS_KEY",
-               "-v", "bio-mcp-cache:/home/app/.cache/bio-mcp",
-               "bio-mcp"]
-    }
-  }
-}
-```
-
-The `-i` flag is required (stdio). The named volume persists the Census
-tables between runs.
-
-The image builds `bio-mcp` from source in a first stage and installs only the
-resulting wheel into the runtime stage, which runs as a non-root user. Note
-the build has not been executed end-to-end yet — it needs to reach PyPI from
-inside the container, which a TLS-intercepting network will block until the
-proxy's root CA is added to the image.
 
 ## Tools
 
@@ -221,24 +151,52 @@ tools read from **precomputed tables** instead:
   scan — TileDB's tile locality punishes random access hard). Every
   result states how many cells the estimate is based on.
 
-Rebuild the tables yourself with `pip install bio-mcp[precompute]`
-(pulls in `cellxgene-census` — Linux/macOS only, no Windows wheels) and:
-
-```bash
-python -m bio_mcp.precompute.build_cell_counts       # ~1 minute, exact
-python -m bio_mcp.precompute.build_expression_cube    # ~1.5 hours, sampled
-```
-
-See `src/bio_mcp/precompute/__init__.py` for the full measurement writeup.
+Building these tables is the one-time setup step under
+[Install](#install). See
+[`src/bio_mcp/precompute/__init__.py`](src/bio_mcp/precompute/__init__.py)
+for the full measurement writeup.
 
 ## Example
 
-<!--
-  scope.md's rule: never write example output that wasn't actually
-  executed. The gene_evidence transcript below is real but partial — the
-  expression cube was still building when this was captured. Will be
-  replaced with the full Census+ORCS transcript once it finishes.
--->
+Every transcript below is captured from a real run. Rows are elided with `...`
+where noted; nothing is reconstructed or illustrative.
+
+`find_cells` over the full Census metadata table — 0.23 s and 344 tokens,
+against a 3-second and 400-token budget:
+
+```
+> find_cells(tissue="lung")
+- **total_cells:** 6,167,731
+- **filters:** {'tissue': 'lung', 'cell_type': None, 'disease': None, 'assay': None}
+
+| Tissue | Cell type | Cells |
+| --- | --- | --- |
+| lung | unknown | 1124691 |
+| lung | alveolar macrophage | 466169 |
+| lung | pulmonary alveolar type 2 cell | 433573 |
+| lung | macrophage | 327835 |
+| lung | CD4-positive, alpha-beta T cell | 253989 |
+| lung | CD8-positive, alpha-beta T cell | 208218 |
+| lung | pulmonary alveolar type 1 cell | 205636 |
+...
+_(242 more rows not shown)_
+
+Datasets: 01209dce-3575-4bed-b1df-129f57fbc031, 093d3bfe-6f0f-4ac0-a7a1-829f94d0a49f, ...
+```
+
+`census_datasets` — 0.01 s, 57 tokens:
+
+```
+> census_datasets("lung atlas")
+| Dataset ID | Title | Collection | Cells |
+| --- | --- | --- | --- |
+| d8da613f-e681-4c69-b463-e94f5e66847f | A molecular single-cell lung atlas of lethal COVID-19 | A molecular single-cell lung atlas of lethal COVID-19 | 116313 |
+```
+
+`gene_evidence` against live BioGRID ORCS, captured on a machine where the
+expression cube had not been built. It is the partial-failure path doing its
+job: the missing source is named in place, the other half still answers, and
+1,534 screens condense to 333 tokens against a 900-token budget.
 
 ```
 > gene_evidence("MYC", tissue="lung")
@@ -246,9 +204,7 @@ See `src/bio_mcp/precompute/__init__.py` for the full measurement writeup.
 # MYC in lung
 
 ## Expression
-_census unavailable: census_expression_cube.parquet is not cached locally..._
-(the sampled expression cube was still building when this was captured —
- see Performance below)
+_census unavailable: census_expression_cube.parquet is not in ~/.cache/bio-mcp..._
 
 ## CRISPR screen hits
 Hit in 943 of 1534 human screens tested.
@@ -263,25 +219,6 @@ Hit in 943 of 1534 human screens tested.
 ...
 _(933 more rows not shown)_
 ```
-333 tokens, well under the 900-token budget for this tool.
-
-Census-only tools, verified live, both under the 3-second budget by two
-orders of magnitude:
-
-```
-> find_cells(tissue="lung")
-- **total_cells:** 6,167,731
-- **filters:** {'tissue': 'lung', 'cell_type': None, 'disease': None, 'assay': None}
-
-| Tissue | Cell type | Cells |
-| --- | --- | --- |
-| lung | unknown | 1124691 |
-| lung | alveolar macrophage | 466169 |
-| lung | pulmonary alveolar type 2 cell | 433573 |
-...
-_(242 more rows not shown)_
-```
-0.08s.
 
 ## Development
 
