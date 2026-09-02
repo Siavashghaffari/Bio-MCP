@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "bio-mcp"
-version = "0.1.0"
+version = "0.1.1"
 description = "MCP server for CZ CELLxGENE Census and BioGRID ORCS — expression by cell type, CRISPR screen hits, and the join between them."
 readme = "README.md"
 license = { text = "Apache-2.0" }
