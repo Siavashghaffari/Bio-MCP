@@ -1,0 +1,137 @@
+name: Release
+
+# Publishes the downloadable install artifacts. Cut a release with:
+#
+#     git tag v0.1.0 && git push origin v0.1.0
+#
+# That produces, on the GitHub Releases page:
+#   - bio-mcp-<os>-<arch>-py312.mcpb   one-click desktop extension, per platform
+#   - bio_mcp-<version>-py3-none-any.whl / .tar.gz
+#
+# The .mcpb bundles vendor binary wheels, which are tied to both the platform
+# and the CPython minor version, so they are built on a matrix rather than once.
+# PYTHON_VERSION below is the version those bundles will require at runtime;
+# mcpb_entry.py checks it and reports a readable error on a mismatch.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  bundle:
+    name: Bundle (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            label: linux-x86_64
+          - os: macos-latest
+            label: macos-arm64
+          - os: windows-latest
+            label: windows-x86_64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install the mcpb CLI
+        run: npm install -g @anthropic-ai/mcpb
+
+      - name: Vendor bio-mcp and its dependencies into lib/
+        run: pip install --target lib .
+
+      - name: Validate the manifest
+        run: mcpb validate manifest.json
+
+      - name: Pack the extension
+        run: mcpb pack . bio-mcp-${{ matrix.label }}-py312.mcpb
+
+      - name: Verify native extensions survived packing
+        # `*.py[cod]` in .mcpbignore would also match `*.pyd` and silently
+        # strip every compiled wheel, producing a bundle that dies on import.
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, sys, zipfile
+          bundle = glob.glob("bio-mcp-*.mcpb")[0]
+          names = zipfile.ZipFile(bundle).namelist()
+          native = [n for n in names if n.endswith((".pyd", ".so", ".dylib"))]
+          print(f"{bundle}: {len(names)} files, {len(native)} native extensions")
+          if not native:
+              sys.exit("no native extensions in the bundle - it would fail on import")
+          if not any(n.endswith("mcpb_entry.py") for n in names):
+              sys.exit("mcpb_entry.py missing from the bundle")
+          PY
+
+      - name: Smoke-test the packed bundle
+        # Unpack and run it exactly as a client would: the manifest sets no
+        # PYTHONPATH, so this also proves mcpb_entry.py's bootstrap works.
+        shell: bash
+        run: |
+          python - <<'PY'
+          import glob, json, subprocess, sys, tempfile, zipfile
+          from pathlib import Path
+
+          out = Path(tempfile.mkdtemp())
+          zipfile.ZipFile(glob.glob("bio-mcp-*.mcpb")[0]).extractall(out)
+          cfg = json.loads((out / "manifest.json").read_text())["server"]["mcp_config"]
+          args = [a.replace("${__dirname}", str(out)) for a in cfg["args"]]
+
+          # Empty stdin: the server should start, see EOF, and exit cleanly.
+          proc = subprocess.run([sys.executable, *args], input=b"",
+                                capture_output=True, timeout=180)
+          if proc.returncode != 0:
+              sys.exit(f"bundle failed to start:\n{proc.stderr.decode(errors='replace')}")
+          print("packed bundle starts and shuts down cleanly")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-${{ matrix.label }}
+          path: bio-mcp-*.mcpb
+
+  release:
+    name: Publish release
+    needs: bundle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Build wheel and sdist
+        run: |
+          pip install build
+          python -m build
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: mcpb-*
+          path: bundles
+          merge-multiple: true
+
+      - name: Publish
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            bundles/*.mcpb
+            dist/*.whl
+            dist/*.tar.gz
+          generate_release_notes: true

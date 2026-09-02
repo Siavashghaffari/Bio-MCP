@@ -33,7 +33,7 @@ from bio_mcp.errors import SourceError
 
 logger = logging.getLogger("bio_mcp.http")
 
-USER_AGENT = "bio-mcp/0.1 (+https://github.com/siavashghaffari/bio-mcp)"
+USER_AGENT = "bio-mcp/0.1 (+https://github.com/Siavashghaffari/Bio-MCP)"
 DEFAULT_TIMEOUT = 15.0
 MAX_ATTEMPTS = 3
 BACKOFF_BASE_SECONDS = 0.5

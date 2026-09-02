@@ -49,8 +49,8 @@ precompute = [
 bio-mcp = "bio_mcp.server:main"
 
 [project.urls]
-Homepage = "https://github.com/siavashghaffari/bio-mcp"
-Issues = "https://github.com/siavashghaffari/bio-mcp/issues"
+Homepage = "https://github.com/Siavashghaffari/Bio-MCP"
+Issues = "https://github.com/Siavashghaffari/Bio-MCP/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/bio_mcp"]

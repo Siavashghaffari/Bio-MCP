@@ -7,10 +7,10 @@
   "long_description": "An MCP server that answers, in one call: is this gene expressed in my cell type, and does knocking it out do anything? Human data only. Six tools over stdio. Census tools read precomputed tables (no 30GB download); the two ORCS tools need a free access key.",
   "author": {
     "name": "Siavash Ghaffari",
-    "url": "https://github.com/siavashghaffari/bio-mcp"
+    "url": "https://github.com/Siavashghaffari/Bio-MCP"
   },
-  "homepage": "https://github.com/siavashghaffari/bio-mcp",
-  "documentation": "https://github.com/siavashghaffari/bio-mcp#readme",
+  "homepage": "https://github.com/Siavashghaffari/Bio-MCP",
+  "documentation": "https://github.com/Siavashghaffari/Bio-MCP#readme",
   "license": "Apache-2.0",
   "keywords": ["bioinformatics", "single-cell", "crispr", "genomics", "census", "biogrid"],
   "server": {

@@ -38,7 +38,7 @@ server = MCPServer(
     # MCPServer defaults version to "", which reports an empty version in the
     # initialize handshake; clients show that as an unversioned server.
     version=__version__,
-    website_url="https://github.com/siavashghaffari/bio-mcp",
+    website_url="https://github.com/Siavashghaffari/Bio-MCP",
     instructions=(
         "Human-only single-cell expression (CZ CELLxGENE Census) and CRISPR "
         "screen hit calls (BioGRID ORCS). Prefer gene_evidence when the "

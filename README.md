@@ -24,86 +24,99 @@ live queries don't work (see [Performance](#performance) below).
 
 ## Install
 
-Run bio-mcp either as a packaged desktop extension or straight from a clone.
-
-The server speaks **stdio** — your MCP client launches it as a subprocess and
-exchanges JSON-RPC over stdin/stdout. It depends only on
-`pandas`, `pyarrow`, `httpx` and `mcp`: no TileDB, no 30 GB downloads.
-
-Two setup steps apply to both installs:
-
-**Census tables.** The Census tools read precomputed tables from
-`~/.cache/bio-mcp/`. Build them once (Linux/macOS — `cellxgene-census` has no
-Windows wheels):
+### 1. Install the server
 
 ```bash
-pip install -e ".[precompute]"
-python -m bio_mcp.precompute.build_cell_counts      # ~5 minutes, exact
-python -m bio_mcp.precompute.build_expression_cube  # ~1.5 hours, sampled
+pip install git+https://github.com/Siavashghaffari/Bio-MCP
 ```
 
-See [Performance](#performance) for why they are precomputed rather than
-queried live. Set `BIO_MCP_CUBE_BASE_URL` to a host serving these files to
-have the server fetch them on first use instead of building them.
+This puts a `bio-mcp` command on your `PATH`. Python 3.10 or newer.
 
-**ORCS key.** `crispr_screen_hits` and `screens_in_cell_line` need
-`ORCS_ACCESS_KEY`, a free key from
-[orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/). Without it those two
-tools return a message explaining how to get one; every Census tool,
-including the Census half of `gene_evidence`, works regardless.
-
-### Option 1 — Desktop Extension (MCPB / `.dxt`)
-
-A one-click bundle for Claude Desktop and other MCPB-compatible clients, with
-a GUI field for the ORCS key. Build it from [`manifest.json`](manifest.json):
-
-```bash
-npm install -g @anthropic-ai/mcpb   # the `mcpb` CLI (formerly `dxt`)
-pip install --target lib .          # vendor bio_mcp + deps into lib/
-mcpb validate manifest.json
-mcpb pack . bio-mcp.mcpb
-```
-
-Then drag `bio-mcp.mcpb` onto your client and fill in the optional key.
-
-Three properties of the packed bundle, measured:
-
-- **It is platform- and Python-version-specific.** `pip install --target`
-  vendors *binary* wheels, so a bundle packed on Windows/CPython 3.10 runs
-  only there. Build one per platform you ship to. (`manifest.json` lists all
-  three platforms because the *source* supports all three.)
-- **It is large**: ~63 MB packed, ~181 MB unpacked — `pandas`, `pyarrow` and
-  `mcp`'s Windows `pywin32` dependency dominate.
-- **First launch takes ~10 s** while Python imports that tree cold. Later
-  launches are faster once `.pyc` files exist.
-
-The bundle runs [`mcpb_entry.py`](mcpb_entry.py) rather than `python -m
-bio_mcp` directly. `pip install --target` does not process `.pth` files, so
-`PYTHONPATH=lib` is not equivalent to installing — and `mcp` depends on
-`pywin32` on Windows, which needs a `.pth` to put `pywintypes` on the path.
-The shim restores that; without it the bundled server dies on import.
-
-### Option 2 — from source
-
-```bash
-git clone https://github.com/siavashghaffari/bio-mcp
-cd bio-mcp
-pip install -e .
-```
-
-That installs a `bio-mcp` console script. Point your client at either it or
-`python -m bio_mcp`:
+### 2. Add it to your MCP client
 
 ```json
 {
   "mcpServers": {
     "bio-mcp": {
       "command": "bio-mcp",
-      "env": { "ORCS_ACCESS_KEY": "your-key-here" }
+      "env": {
+        "ORCS_ACCESS_KEY": "your-key-here"
+      }
     }
   }
 }
 ```
+
+If `bio-mcp` is not on your `PATH`, use `"command": "python"` with
+`"args": ["-m", "bio_mcp"]`.
+
+Where that block goes, for Claude Desktop:
+
+| OS | Config file |
+|---|---|
+| macOS | `~/Library/Application Support/Claude/claude_desktop_config.json` |
+| Windows | `%APPDATA%\Claude\claude_desktop_config.json` |
+| Linux | `~/.config/Claude/claude_desktop_config.json` |
+
+Cursor, Cline, Zed and custom agents take the same `mcpServers` block in their
+own config file. bio-mcp speaks stdio — the client launches it as a subprocess
+and exchanges JSON-RPC over stdin/stdout.
+
+Restart your client. Six bio-mcp tools should appear.
+
+### 3. Build the Census data tables
+
+`find_cells`, `census_datasets` and `expression_by_cell_type` read precomputed
+tables from `~/.cache/bio-mcp/`. Build them once, on Linux or macOS
+(`cellxgene-census` publishes no Windows wheels):
+
+```bash
+git clone https://github.com/Siavashghaffari/Bio-MCP
+cd Bio-MCP
+pip install -e ".[precompute]"
+python -m bio_mcp.precompute.build_cell_counts      # ~5 minutes, exact
+python -m bio_mcp.precompute.build_expression_cube  # ~1.5 hours, sampled
+```
+
+[Performance](#performance) explains why these are precomputed rather than
+queried live. Until they exist, the Census tools return a message naming the
+missing file and these commands.
+
+To reuse one build across machines, host the resulting `.parquet` files
+anywhere and set `BIO_MCP_CUBE_BASE_URL` to that location; the server fetches
+them on first use.
+
+### 4. Get an ORCS key (optional)
+
+`crispr_screen_hits` and `screens_in_cell_line` need `ORCS_ACCESS_KEY`, a free
+key from [orcsws.thebiogrid.org](https://orcsws.thebiogrid.org/). Without it
+those two tools explain how to get one, and every Census tool — including the
+Census half of `gene_evidence` — keeps working.
+
+### Alternative: install as a desktop extension
+
+Instead of steps 1–2, you can package bio-mcp as a double-clickable Claude
+Desktop extension. Build it with:
+
+```bash
+git clone https://github.com/Siavashghaffari/Bio-MCP
+cd Bio-MCP
+npm install -g @anthropic-ai/mcpb
+pip install --target lib .
+mcpb pack . bio-mcp.mcpb
+```
+
+Drag the resulting `bio-mcp.mcpb` onto Claude Desktop's **Settings →
+Extensions**; it prompts for the ORCS key in a form field. Steps 3 and 4 still
+apply.
+
+The bundle vendors its dependencies, so it is tied to the platform *and* the
+Python version you build it with — build it on the machine you will run it on.
+It is ~63 MB and takes about 10 seconds to start the first time. If the
+Python does not match, the extension says so instead of failing obscurely.
+
+bio-mcp itself depends only on `pandas`, `pyarrow`, `httpx` and `mcp`. No
+TileDB, no 30 GB download.
 
 ## Tools
 
@@ -223,13 +236,45 @@ _(933 more rows not shown)_
 ## Development
 
 ```bash
-git clone https://github.com/siavashghaffari/bio-mcp
-cd bio-mcp
+git clone https://github.com/Siavashghaffari/Bio-MCP
+cd Bio-MCP
 pip install -e ".[dev]"
 ruff check .
-pytest tests/ -v          # offline, no network, this is what CI runs
+pytest tests/ -v            # offline, no network, this is what CI runs
 python -m bio_mcp.selftest  # live smoke test, hits every tool once
 ```
+
+### Cutting a release
+
+Tagging publishes the downloadable install artifacts —
+`.mcpb` extensions for Linux, macOS and Windows, plus a wheel and sdist:
+
+```bash
+git tag v0.1.0 && git push origin v0.1.0
+```
+
+[`.github/workflows/release.yml`](.github/workflows/release.yml) builds each
+bundle on its own runner (vendored binary wheels are tied to both platform and
+CPython minor version), verifies native extensions survived packing, smoke-tests
+that each bundle starts, and attaches everything to the GitHub Release.
+
+To build one locally:
+
+```bash
+npm install -g @anthropic-ai/mcpb
+pip install --target lib .
+mcpb validate manifest.json
+mcpb pack . bio-mcp.mcpb
+```
+
+The bundle runs [`mcpb_entry.py`](mcpb_entry.py) rather than `python -m
+bio_mcp` directly. `pip install --target` does not process `.pth` files, so
+`PYTHONPATH=lib` is not equivalent to installing — and `mcp` depends on
+`pywin32` on Windows, which needs a `.pth` to put `pywintypes` on the path.
+The shim restores that and checks the interpreter version. Note that
+`.mcpbignore` must never use the `*.py[cod]` glob: it also matches `*.pyd` and
+silently strips every compiled wheel out of the bundle. CI fails if it
+reappears.
 
 ## Out of scope
 
