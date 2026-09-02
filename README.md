@@ -30,7 +30,7 @@ Two ways in. Both need steps 3 and 4 afterwards.
 
 **1. Download [`bio-mcp.mcpb`](https://github.com/Siavashghaffari/Bio-MCP/releases/latest/download/bio-mcp.mcpb)**
 from the [latest release](https://github.com/Siavashghaffari/Bio-MCP/releases/latest).
-One 1.3 MB file — same file for Windows, macOS and Linux.
+One 1.7 MB file — the same file for Windows, macOS and Linux.
 
 **2. Install it.** Open Claude Desktop → **Settings → Extensions**, then drag
 the file onto that window. Double-clicking works too. If your Claude Desktop
