@@ -16,12 +16,15 @@ env/
 
 .cache_bio_mcp/
 
-# MCPB / DXT bundle build artifacts (see manifest.json and the README).
-# bio-mcp.dxt is the exception: it is the shipped extension and is tracked.
+# MCPB / DXT build artifacts (see manifest.json and the README).
+# The three shipped extension bundles are the exception: they are tracked.
 lib/
+build-stage/
 *.mcpb
 *.dxt
-!bio-mcp.dxt
+!bio-mcp-windows-x64.dxt
+!bio-mcp-linux-x64.dxt
+!bio-mcp-macos-arm64.dxt
 
 # Precompute output goes to ~/.cache/bio-mcp/ (BIO_MCP_CACHE_DIR), never
 # into the repo, so a blanket *.parquet/*.duckdb rule isn't needed here —

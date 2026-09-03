@@ -28,22 +28,27 @@ Two ways in. Both need steps 3 and 4 afterwards.
 
 ### Option A — Claude Desktop extension (drag and drop)
 
-> **Works on Windows x64 with Python 3.10 only.** The extension carries its
-> own dependencies, and those are compiled wheels tagged `cp310-win_amd64` —
-> they will not load on another platform or another Python minor version.
-> Claude Desktop ships a Node.js runtime but no Python one, so there is no way
-> around bundling them. On anything else, use [Option B](#option-b--pip-and-a-config-file-any-mcp-client),
-> which has no such restriction, or [rebuild the bundle](#cutting-a-release)
-> against your own Python.
+> **Every bundle requires CPython 3.10 on your `PATH`.** Claude Desktop ships a
+> Node.js runtime but no Python one, so each extension vendors its own compiled
+> dependencies — and those wheels are built for one platform and one Python
+> minor version. On any other Python, use
+> [Option B](#option-b--pip-and-a-config-file-any-mcp-client), which has no such
+> restriction, or [rebuild the bundle](#rebuilding-the-extensions) for your
+> interpreter.
 
-1. Grab [`bio-mcp.dxt`](bio-mcp.dxt) from this repository (66 MB).
+| Platform | Download | Size | Verified |
+|---|---|---|---|
+| Windows x64 | [`bio-mcp-windows-x64.dxt`](bio-mcp-windows-x64.dxt) | 66 MB | Installed and running in Claude Desktop 1.40609 |
+| Linux x64 | [`bio-mcp-linux-x64.dxt`](bio-mcp-linux-x64.dxt) | 90 MB | Full MCP handshake and tool calls in a clean `python:3.10-slim` container |
+| macOS Apple silicon | [`bio-mcp-macos-arm64.dxt`](bio-mcp-macos-arm64.dxt) | 71 MB | Built from arm64 wheels, Mach-O headers checked; not yet run on Apple hardware |
+
+1. Download the file for your platform from the table above.
 2. Open Claude Desktop → **Settings → Extensions** and drag the file onto that
    window.
 3. Paste your ORCS key into the field it offers, or leave it blank (see step 4).
 
-Verified on Claude Desktop 1.40609 with CPython 3.10 on `PATH`. `python` must
-resolve on the PATH Claude Desktop sees — the bundle launches
-`python ${__dirname}/mcpb_entry.py`.
+Intel Macs are not covered — build one with the command in
+[Rebuilding the extensions](#rebuilding-the-extensions).
 
 ### Option B — pip and a config file (any MCP client)
 
@@ -241,22 +246,29 @@ pytest tests/ -v            # offline, no network, this is what CI runs
 python -m bio_mcp.selftest  # live smoke test, hits every tool once
 ```
 
-### Rebuilding the extension
+### Rebuilding the extensions
 
-`bio-mcp.dxt` is committed at the repo root. It is a **DXT 0.1 python
-extension**: `manifest.json` declares `dxt_version: "0.1"` and
+The three `.dxt` files are committed at the repo root. Each is a **DXT 0.1
+python extension**: `manifest.json` declares `dxt_version: "0.1"` and
 `server.type: "python"`, and the bundle vendors every dependency into `lib/`.
 Claude Desktop provides a Node.js runtime but no Python one, so a Python
 extension has to carry its own.
 
-That vendoring is what makes the artifact platform- and version-specific: the
-committed bundle holds `cp310-win_amd64` wheels. To build one for a different
-platform or Python, run this on that machine, with that interpreter:
+That vendoring is what makes each artifact specific to one platform and one
+CPython minor version. Cross-building works because `uv` evaluates dependency
+markers for the *target* platform rather than the host — plain
+`pip install --target --platform` does not, and fails resolving `pywin32`
+(which `mcp` requires only on Windows).
 
 ```bash
 npm install -g @anthropic-ai/mcpb
-pip install --target lib .
-mcpb pack . bio-mcp.dxt
+python -m build --wheel
+
+# repeat per target: x86_64-unknown-linux-gnu | aarch64-apple-darwin
+#                    x86_64-apple-darwin      | x86_64-pc-windows-msvc
+mkdir -p build-stage/linux && cp manifest.json mcpb_entry.py build-stage/linux/
+uv pip install --target build-stage/linux/lib dist/bio_mcp-*.whl     --python-platform x86_64-unknown-linux-gnu --python-version 3.10
+(cd build-stage/linux && mcpb pack . ../../bio-mcp-linux-x64.dxt)
 ```
 
 Two things to keep right when changing the packaging:

@@ -54,36 +54,48 @@ jobs:
           npm install -g @anthropic-ai/mcpb
           mcpb validate manifest.json
 
-      - name: Check the committed extension bundle
-        # bio-mcp.dxt is built by hand (it vendors platform-specific wheels, so
-        # a Linux runner cannot rebuild it) and committed. CI verifies the
-        # artifact in the repo is intact rather than repacking it.
+      - name: Check the committed extension bundles
+        # The .dxt files vendor platform-specific wheels, so a Linux runner
+        # cannot rebuild them. CI verifies the committed artifacts are intact.
         run: |
           python - <<'PY'
-          import sys, zipfile, json
+          import json, sys, zipfile
           from pathlib import Path
 
-          bundle = Path("bio-mcp.dxt")
-          if not bundle.exists():
-              sys.exit("bio-mcp.dxt is missing from the repo")
+          expected = {
+              "bio-mcp-windows-x64.dxt": ".pyd",
+              "bio-mcp-linux-x64.dxt": ".so",
+              "bio-mcp-macos-arm64.dxt": ".so",
+          }
+          failures = []
+          for filename, native_suffix in expected.items():
+              path = Path(filename)
+              if not path.exists():
+                  failures.append(f"{filename}: missing from the repo")
+                  continue
+              archive = zipfile.ZipFile(path)
+              names = archive.namelist()
+              manifest = json.loads(archive.read("manifest.json"))
 
-          z = zipfile.ZipFile(bundle)
-          names = z.namelist()
-          manifest = json.loads(z.read("manifest.json"))
+              if manifest.get("dxt_version") != "0.1":
+                  failures.append(f"{filename}: manifest must declare dxt_version 0.1")
+              if manifest["server"]["type"] != "python":
+                  failures.append(f"{filename}: manifest must declare server.type python")
+              if "mcpb_entry.py" not in names:
+                  failures.append(f"{filename}: mcpb_entry.py missing")
 
-          if manifest.get("dxt_version") != "0.1":
-              sys.exit("bundle manifest must declare dxt_version 0.1")
-          if manifest["server"]["type"] != "python":
-              sys.exit("bundle manifest must declare server.type python")
-          if "mcpb_entry.py" not in names:
-              sys.exit("mcpb_entry.py missing from the bundle")
+              # `*.py[cod]` in .mcpbignore also matches `*.pyd` and would
+              # silently strip every compiled wheel, leaving a dead bundle.
+              native = [n for n in names if n.endswith(native_suffix)]
+              if not native:
+                  failures.append(f"{filename}: no {native_suffix} files - would fail on import")
+              else:
+                  print(f"{filename}: {len(names)} files, {len(native)} native")
 
-          # `*.py[cod]` in .mcpbignore also matches `*.pyd` and would silently
-          # strip every compiled wheel, leaving a bundle that dies on import.
-          native = [n for n in names if n.endswith((".pyd", ".so", ".dylib"))]
-          if not native:
-              sys.exit("no native extensions in the bundle - it would fail on import")
-          print(f"bio-mcp.dxt OK: {len(names)} files, {len(native)} native extensions")
+          if failures:
+              sys.exit("
+".join(failures))
+          print("all three bundles OK")
           PY
 
       - name: Reject the *.py[cod] glob in .mcpbignore
