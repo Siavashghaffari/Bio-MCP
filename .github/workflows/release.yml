@@ -1,18 +1,15 @@
 name: Release
 
-# Publishes the downloadable install artifacts. Cut a release with:
+# Publishes the Python distribution artifacts. Cut a release with:
 #
-#     git tag v0.1.1 && git push origin v0.1.1
+#     git tag v0.1.2 && git push origin v0.1.2
 #
-# Produces, on the GitHub Releases page:
-#   - bio-mcp.mcpb   the desktop extension: one file, every platform
-#   - bio_mcp-<version>-py3-none-any.whl / .tar.gz
-#
-# The extension is a `uv` bundle (manifest.json, server.type "uv"): it ships
-# source plus pyproject.toml, and uv resolves dependencies and provisions a
-# Python on the user's machine at first launch. That is why there is no build
-# matrix here — unlike a vendored bundle, this artifact is not tied to a
-# platform or a CPython version.
+# The Claude Desktop extension (bio-mcp.dxt) is deliberately NOT built here.
+# It is a DXT 0.1 python extension that vendors its dependencies, so the
+# artifact is tied to the platform and CPython minor version it was packed
+# with - a Linux CI runner cannot produce the Windows/3.10 bundle that ships
+# in this repo. It is built by hand and committed at the repo root instead;
+# see "Rebuilding the extension" in the README.
 
 on:
   push:
@@ -32,75 +29,18 @@ jobs:
         with:
           python-version: "3.12"
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install the mcpb CLI
-        run: npm install -g @anthropic-ai/mcpb
-
-      - name: Validate the manifest
-        run: mcpb validate manifest.json
-
-      - name: Pack the extension
-        run: mcpb pack . bio-mcp.mcpb
-
-      - name: Check the bundle's shape
-        run: |
-          python - <<'PY'
-          import sys, zipfile
-          names = zipfile.ZipFile("bio-mcp.mcpb").namelist()
-          print(f"bio-mcp.mcpb: {len(names)} files")
-
-          required = ["manifest.json", "pyproject.toml",
-                      "src/bio_mcp/__main__.py",
-                      "src/bio_mcp/data/human_gene_ids.parquet"]
-          for name in required:
-              if name not in names:
-                  sys.exit(f"missing from bundle: {name}")
-
-          # The MCPB spec forbids a vendored lib/ or venv/ in a uv bundle:
-          # compiled wheels are not portable across platforms or Python versions.
-          for bad in ("lib/", "venv/", ".venv/", ".claude/"):
-              if any(n.startswith(bad) for n in names):
-                  sys.exit(f"a uv bundle must not contain {bad}")
-          print("bundle shape OK")
-          PY
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      - name: Smoke-test the packed bundle
-        # Unpack and launch it exactly as the manifest says a client would.
-        # Empty stdin: the server should start, see EOF, and exit cleanly.
-        run: |
-          python - <<'PY'
-          import json, subprocess, sys, tempfile, zipfile
-          from pathlib import Path
-
-          out = Path(tempfile.mkdtemp())
-          zipfile.ZipFile("bio-mcp.mcpb").extractall(out)
-          cfg = json.loads((out / "manifest.json").read_text())["server"]["mcp_config"]
-          args = [a.replace("${__dirname}", str(out)) for a in cfg["args"]]
-
-          proc = subprocess.run([cfg["command"], *args], input=b"",
-                                capture_output=True, timeout=600)
-          if proc.returncode != 0:
-              sys.exit("bundle failed to start:\n"
-                       + proc.stderr.decode(errors="replace"))
-          print("packed bundle starts and shuts down cleanly")
-          PY
-
       - name: Build wheel and sdist
         run: |
           pip install build
           python -m build
 
+      - name: Check the bundled gene-id table made it into the wheel
+        run: python -c "import zipfile, glob; w = glob.glob('dist/*.whl')[0]; assert 'bio_mcp/data/human_gene_ids.parquet' in zipfile.ZipFile(w).namelist(), 'gene-id table missing from wheel'"
+
       - name: Publish
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bio-mcp.mcpb
             dist/*.whl
             dist/*.tar.gz
           generate_release_notes: true

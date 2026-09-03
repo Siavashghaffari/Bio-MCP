@@ -1,10 +1,9 @@
-# Excluded from the packed .mcpb bundle.
+# Excluded from the packed .mcpb / .dxt bundle.
 #
-# The bundle is a `uv` extension (manifest.json, server.type "uv"): it ships
-# manifest.json, pyproject.toml and src/, and uv resolves the dependencies on
-# the user's machine at first launch. Per the MCPB spec a uv bundle must NOT
-# contain a vendored lib/ or venv/ — bundling compiled wheels (pandas, pyarrow,
-# pydantic-core) is not portable across platforms or Python versions.
+# This is a DXT 0.1 python extension. Claude Desktop ships a Node.js runtime
+# but no Python one, so the bundle vendors its dependencies into lib/ (see the
+# release workflow) and launches them through mcpb_entry.py. lib/ must
+# therefore NOT be excluded here.
 .git/
 .github/
 .claude/
@@ -13,6 +12,9 @@
 venv/
 env/
 __pycache__/
+# NOT *.py[cod] - that glob also matches *.pyd, the Windows native extension
+# suffix, which silently strips every compiled wheel out of lib/ and leaves a
+# bundle that dies on import. Same reason .so/.dylib are never excluded.
 *.pyc
 *.pyo
 *.egg-info/
@@ -21,11 +23,11 @@ __pycache__/
 .mypy_cache/
 dist/
 build/
-lib/
 tests/
 scope.md
 design.md
 MVP.md
+uv.lock
 *.mcpb
 *.dxt
 .env

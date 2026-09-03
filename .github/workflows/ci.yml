@@ -49,24 +49,46 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Validate the MCPB extension manifest
+      - name: Validate the extension manifest
         run: |
           npm install -g @anthropic-ai/mcpb
           mcpb validate manifest.json
 
-      - name: Check the extension bundle's shape
+      - name: Check the committed extension bundle
+        # bio-mcp.dxt is built by hand (it vendors platform-specific wheels, so
+        # a Linux runner cannot rebuild it) and committed. CI verifies the
+        # artifact in the repo is intact rather than repacking it.
         run: |
-          mcpb pack . bio-mcp.mcpb
           python - <<'PY'
-          import sys, zipfile
-          names = zipfile.ZipFile("bio-mcp.mcpb").namelist()
-          for name in ("manifest.json", "pyproject.toml", "src/bio_mcp/__main__.py"):
-              if name not in names:
-                  sys.exit(f"missing from bundle: {name}")
-          # A uv bundle must not vendor dependencies - compiled wheels are not
-          # portable across platforms or Python versions.
-          for bad in ("lib/", "venv/", ".venv/", ".claude/"):
-              if any(n.startswith(bad) for n in names):
-                  sys.exit(f"a uv bundle must not contain {bad}")
-          print(f"bundle OK: {len(names)} files")
+          import sys, zipfile, json
+          from pathlib import Path
+
+          bundle = Path("bio-mcp.dxt")
+          if not bundle.exists():
+              sys.exit("bio-mcp.dxt is missing from the repo")
+
+          z = zipfile.ZipFile(bundle)
+          names = z.namelist()
+          manifest = json.loads(z.read("manifest.json"))
+
+          if manifest.get("dxt_version") != "0.1":
+              sys.exit("bundle manifest must declare dxt_version 0.1")
+          if manifest["server"]["type"] != "python":
+              sys.exit("bundle manifest must declare server.type python")
+          if "mcpb_entry.py" not in names:
+              sys.exit("mcpb_entry.py missing from the bundle")
+
+          # `*.py[cod]` in .mcpbignore also matches `*.pyd` and would silently
+          # strip every compiled wheel, leaving a bundle that dies on import.
+          native = [n for n in names if n.endswith((".pyd", ".so", ".dylib"))]
+          if not native:
+              sys.exit("no native extensions in the bundle - it would fail on import")
+          print(f"bio-mcp.dxt OK: {len(names)} files, {len(native)} native extensions")
           PY
+
+      - name: Reject the *.py[cod] glob in .mcpbignore
+        run: |
+          if grep -qE '^\*\.py\[cod\]' .mcpbignore; then
+            echo "::error::.mcpbignore must not use *.py[cod] - it also matches *.pyd"
+            exit 1
+          fi
